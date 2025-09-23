@@ -8,6 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-tooltip@0"></script>
   <style>
     body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:24px;background:#fcfcfd;color:#111}
     .wrap{max-width:980px;margin:auto}
@@ -18,31 +19,35 @@
 <body>
 <div class="wrap">
   <h1>ABS National Health Survey 2022 — Mental & Behavioural Conditions by State</h1>
-  <p>Values are persons (’000). Data: ABS Table 2.1. Map: Natural Earth Admin-1.</p>
-  <div id="vis"></div>
-  <figcaption>Tip: hover a state to see the value. Choropleth uses a sequential scheme.</figcaption>
+  <p>Values are persons ('000). Data: ABS Table 2.1. Map: Natural Earth Admin-1.</p>
+  <div id="vis" aria-label="Choropleth of mental and behavioural conditions per 1,000 people by Australian state, NHS 2022."></div>
+  <figcaption>
+    Source: ABS National Health Survey 2022 (Table 2.1). Visualisation by YishuLAI. 
+    Map file: <a href="au_admin_1_states_provinces.json" target="_blank" rel="noopener">TopoJSON definition</a>.
+  </figcaption>
 </div>
 
 <script>
   const spec = {
     "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
     "width": 900, "height": 580,
-    "projection": {"type": "equalEarth"},
+    "projection": {"type": "mercator", "center": [134, -28], "scale": 800},
     "layer": [
       /* ocean background */
       {"mark": {"type": "rect", "fill": "#eef4fa"},
-       "width": 900, "height": 580},
+       "width": 900, "height": 580, "interactive": false},
 
       /* graticule */
       {
         "data": {"graticule": {"step": [20, 20]}},
-        "mark": {"type": "geoshape", "stroke": "#cdd7e1", "strokeWidth": 0.6, "filled": false}
+        "mark": {"type": "geoshape", "stroke": "#cdd7e1", "strokeWidth": 0.6, "filled": false},
+        "interactive": false
       },
 
       /* states choropleth */
       {
         "data": {
-          "url": "ne_10m_admin_1_states_provinces.json",
+          "url": "au_admin_1_states_provinces.json",
           "format": {"type": "topojson", "feature": "ne_10m_admin_1_states_provinces"}
         },
         "transform": [
@@ -50,51 +55,98 @@
           {
             "lookup": "properties.name",
             "from": {
-              "data": {"url": "mental_health_by_state.csv"},
+              "data": {"url": "mental_health_by_state.csv", "format": {"type": "csv", "parse": {"Value": "number"}}},
               "key": "State",
               "fields": ["Value"]
             }
           },
-          /* previously filtered by country; not needed when filtering by names */
+          {
+            "lookup": "properties.name",
+            "from": {
+              "data": {"url": "state_population_2022.csv", "format": {"type": "csv", "parse": {"Population": "number"}}},
+              "key": "State",
+              "fields": ["Population"]
+            }
+          },
           /* include only main states/territories */
           {"filter": {"field": "properties.name", "oneOf": [
             "New South Wales", "Victoria", "Queensland", "South Australia",
             "Western Australia", "Tasmania", "Northern Territory", "Australian Capital Territory"
           ]}},
+          /* coerce numeric fields and compute rate per 1,000 */
+          {"calculate": "toNumber(datum.Value)", "as": "ValueNum"},
+          {"calculate": "toNumber(datum.Population)", "as": "PopNum"},
+          {"calculate": "(datum.ValueNum / datum.PopNum) * 1000", "as": "RatePer1000"},
           /* keep only features that have a CSV match */
-          {"filter": "isValid(datum.Value) && datum.Value != null"}
+          {"filter": "isValid(datum.RatePer1000) && datum.RatePer1000 != null"}
         ],
-        "mark": {"type": "geoshape", "stroke": "#ffffff", "strokeWidth": 1},
+        "mark": {"type": "geoshape", "stroke": "#ffffff", "strokeWidth": 1, "zindex": 2, "tooltip": true},
         "encoding": {
           "color": {
-            "field": "Value", "type": "quantitative",
-            "title": "Persons (’000)",
-            "scale": {"scheme": "Blues"}
+            "field": "RatePer1000", "type": "quantitative",
+            "title": "Persons with Mental & Behavioural Conditions per 1,000 (NHS 2022)",
+            "scale": {"scheme": "blues", "nice": true, "zero": false}
           },
           "tooltip": [
             {"field": "properties.name", "type": "nominal", "title": "State/Territory"},
-            {"field": "Value", "type": "quantitative", "title": "Persons (’000)"}
+            {"field": "ValueNum", "type": "quantitative", "title": "Persons ('000)", "format": ",.1f"},
+            {"field": "RatePer1000", "type": "quantitative", "title": "Per 1,000", "format": ",.2f"}
+          ]
+        }
+      },
+
+      /* transparent hotspot layer for reliable hover tooltips */
+      {
+        "data": {
+          "url": "au_admin_1_states_provinces.json",
+          "format": {"type": "topojson", "feature": "ne_10m_admin_1_states_provinces"}
+        },
+        "transform": [
+          {"lookup": "properties.name", "from": {"data": {"url": "mental_health_by_state.csv", "format": {"type": "csv", "parse": {"Value": "number"}}}, "key": "State", "fields": ["Value"]}},
+          {"lookup": "properties.name", "from": {"data": {"url": "state_population_2022.csv", "format": {"type": "csv", "parse": {"Population": "number"}}}, "key": "State", "fields": ["Population"]}},
+          {"filter": {"field": "properties.name", "oneOf": [
+            "New South Wales", "Victoria", "Queensland", "South Australia",
+            "Western Australia", "Tasmania", "Northern Territory", "Australian Capital Territory"
+          ]}},
+          {"calculate": "toNumber(datum.Value)", "as": "ValueNum"},
+          {"calculate": "toNumber(datum.Population)", "as": "PopNum"},
+          {"calculate": "(datum.ValueNum / datum.PopNum) * 1000", "as": "RatePer1000"}
+        ],
+        "mark": {"type": "geoshape", "stroke": null, "strokeOpacity": 0, "fill": "#000", "fillOpacity": 0.02, "zindex": 3, "tooltip": true},
+        "encoding": {
+          "tooltip": [
+            {"field": "properties.name", "type": "nominal", "title": "State/Territory"},
+            {"field": "ValueNum", "type": "quantitative", "title": "Persons ('000)", "format": ",.1f"},
+            {"field": "RatePer1000", "type": "quantitative", "title": "Per 1,000", "format": ",.2f"}
           ]
         }
       },
 
       /* neat outline */
       {
-        "data": {
-          "url": "ne_10m_admin_1_states_provinces.json",
-          "format": {"type": "topojson", "feature": "ne_10m_admin_1_states_provinces"}
-        },
-        "transform": [],
-        "mark": {"type": "geoshape", "stroke": "#6c7a89", "strokeWidth": 0.8, "filled": false}
-      }
+  "data": {
+    "url": "au_admin_1_states_provinces.json",
+    "format": {"type": "topojson", "feature": "ne_10m_admin_1_states_provinces"}
+  },
+  "transform": [],
+  "mark": {
+    "type": "geoshape",
+    "stroke": "#6c7a89",
+    "strokeWidth": 0.8,
+    "filled": false,
+    "zindex": 1,
+    "interactive": false
+  },
+  "interactive": false
+}
     ],
     "config": {
-      "legend": {"orient": "right"},
+      "legend": {"orient": "right", "labelExpr": "format(datum.value, ',.1f')", "titleLimit": 1000, "labelLimit": 1000, "titleFontSize": 12, "titlePadding": 6, "titleLineHeight": 14},
       "view": {"stroke": null}
     }
   };
 
-  vegaEmbed("#vis", spec, {actions:false});
+  vegaEmbed("#vis", spec, {actions:false, tooltip: true, renderer: "svg"});
 </script>
 </body>
 </html>
