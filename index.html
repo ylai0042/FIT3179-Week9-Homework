@@ -83,7 +83,7 @@
           ]}},
           {"calculate": "toNumber(datum.Value)", "as": "ValueNum"},
           {"calculate": "toNumber(datum.Population)", "as": "PopNum"},
-          {"calculate": "(datum.ValueNum / datum.PopNum) * 1000", "as": "RatePer1000"},
+          {"calculate": "((datum.ValueNum * 1000) / datum.PopNum) * 1000", "as": "RatePer1000"},
           {"filter": "isValid(datum.RatePer1000) && datum.RatePer1000 != null"}
         ],
         "mark": {"type": "geoshape", "stroke": "#ffffff", "strokeWidth": 1, "cursor": "pointer"},
