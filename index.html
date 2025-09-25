@@ -3,111 +3,192 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ABS Mental & Behavioural Conditions by State (2022)</title>
+  <title>ABS NHS 2022 — Mental & Behavioural Conditions per 1,000 by State (Australia)</title>
+
   <!-- Vega libraries -->
   <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vega-tooltip@0"></script>
+
   <style>
-    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:24px;background:#fcfcfd;color:#111}
+    :root{--ink:#111;--muted:#586174;--bg:#fcfcfd;--panel:#fff;--border:#e6e6e6}
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:24px;background:var(--bg);color:var(--ink)}
     .wrap{max-width:980px;margin:auto}
-    #vis{border:1px solid #e6e6e6;border-radius:10px;background:white}
-    figcaption{margin-top:8px;font-size:0.9rem;color:#555}
+    #vis{border:1px solid var(--border);border-radius:12px;background:var(--panel)}
+    h1{line-height:1.25;margin:0 0 8px}
+    p.meta{margin:6px 0 16px;color:var(--muted)}
+    figcaption{margin-top:10px;font-size:0.9rem;color:var(--muted)}
+    a{color:#0b63c3;text-decoration:none}
+    a:hover{text-decoration:underline}
   </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>ABS National Health Survey 2022 — Mental & Behavioural Conditions by State</h1>
-  <p>Values are persons ('000). Data: ABS Table 2.1. Map: Natural Earth Admin-1.</p>
-  <div id="vis" aria-label="Choropleth of mental and behavioural conditions per 1,000 people by Australian state, NHS 2022."></div>
+  <h1>ABS National Health Survey 2022 — Mental &amp; Behavioural Conditions per 1,000 by State</h1>
+  <p class="meta">
+    Rates are computed as <em>(persons in ‘000 × 1,000) ÷ state population</em>. Data: ABS NHS 2022 Table 2.1 (counts) + ABS ERP 2022 (population).
+    Geometry: Natural Earth Admin-1 (Australia).
+  </p>
+
+  <div id="vis"
+       aria-label="Choropleth map of Australia showing persons with mental and behavioural conditions per 1,000 by state and territory (ABS NHS 2022).">
+  </div>
+
+  <style>
+    /* Float legend container at top-right over the chart */
+    #vis{position:relative}
+    #legend-float{position:absolute; top:10px; right:10px; background:rgba(255,255,255,0.95); border:1px solid #e6e6e6; border-radius:8px; padding:8px 10px; box-shadow:0 2px 8px rgba(0,0,0,0.06); max-width:none}
+  </style>
+  <div id="legend-float"></div>
+
   <figcaption>
-    Source: ABS National Health Survey 2022 (Table 2.1). Visualisation by YishuLAI. 
-    Map file: <a href="au_admin_1_states_provinces.json" target="_blank" rel="noopener">TopoJSON definition</a>.
+    Source: Australian Bureau of Statistics, <em>National Health Survey 2022</em> (Table 2.1) and ABS Estimated Resident Population 2022.
+    Visualisation by Yishu Lai. TopoJSON: <a href="au_admin_1_states_provinces.json" target="_blank" rel="noopener">Admin-1 states/territories</a>.
   </figcaption>
 </div>
 
 <script>
-  const spec = {
-    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-    "width": 900, "height": 580,
-    "projection": {"type": "mercator", "center": [134, -28], "scale": 800},
-    "layer": [
-      /* ocean background (non-interactive) */
-      {
-        "mark": {"type": "rect", "fill": "#eef4fa", "tooltip": null},
-        "width": 900, "height": 580
-      },
+const spec = {
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 920,
+  "height": 560,
+  "padding": 0,
+  "autosize": {"type":"fit","contains":"padding"},
 
-      /* graticule (non-interactive) */
-      {
-        "data": {"graticule": {"step": [20, 20]}},
-        "mark": {"type": "geoshape", "stroke": "#cdd7e1", "strokeWidth": 0.6, "filled": false, "tooltip": null}
-      },
+  /* Australia-appropriate projection (equal-area conic) */
+"projection": {
+  "type": "conicEqualArea",
+  "rotate": [-134, 0, 0],   // sets central meridian to 134°E (note the minus)
+  "center": [0, -28],       // centers latitude near Australia’s middle
+  "parallels": [-18, -36],  // standard parallels for AU
+  "scale": 900              // tweak 900–1050 to fit nicely
+}
 
-      /* neat outline (non-interactive) */
-      {
-        "data": {
-          "url": "au_admin_1_states_provinces.json",
-          "format": {"type": "topojson", "feature": "ne_10m_admin_1_states_provinces"}
+
+,
+
+  "layer": [
+    /* Ocean background via sphere */
+    {
+      "data": {"sphere": {}},
+      "mark": {"type": "geoshape", "fill": "#EEF4FA", "stroke": null, "tooltip": null}
+    },
+
+    /* Graticule for reference */
+    {
+      "data": {"graticule": {"step": [15, 15]}},
+      "mark": {"type": "geoshape", "stroke": "#cbd6e2", "strokeWidth": 0.6, "filled": false, "tooltip": null}
+    },
+
+    /* Light state outlines (back) */
+    {
+      "data": {
+        "url": "au_admin_1_states_provinces.json",
+        "format": {"type": "topojson", "feature": "ne_10m_admin_1_states_provinces"}
+      },
+      "transform": [
+        {"filter": {"field": "properties.name", "oneOf": [
+          "New South Wales","Victoria","Queensland","South Australia",
+          "Western Australia","Tasmania","Northern Territory","Australian Capital Territory"
+        ]}}
+      ],
+      "mark": {"type": "geoshape", "stroke": "#6c7a89", "strokeWidth": 0.6, "filled": false, "tooltip": null}
+    },
+
+    /* Choropleth layer (rates per 1,000) */
+    {
+      "data": {
+        "url": "au_admin_1_states_provinces.json",
+        "format": {"type": "topojson", "feature": "ne_10m_admin_1_states_provinces"}
+      },
+      "transform": [
+        /* Keep AU states/territories only */
+        {"filter": {"field": "properties.name", "oneOf": [
+          "New South Wales","Victoria","Queensland","South Australia",
+          "Western Australia","Tasmania","Northern Territory","Australian Capital Territory"
+        ]}},
+
+        /* Join ABS NHS counts (in '000) */
+        {
+          "lookup": "properties.name",
+          "from": {
+            "data": {
+              "url": "mental_health_by_state.csv",
+              "format": {"type": "csv", "parse": {"Value": "number"}}
+            },
+            "key": "State",
+            "fields": ["Value"]    /* persons in '000 */
+          }
         },
-        "mark": {"type": "geoshape", "stroke": "#6c7a89", "strokeWidth": 0.8, "filled": false, "tooltip": null}
-      },
 
-      /* states choropleth (interactive, tooltips) */
-      {
-        "data": {
-          "url": "au_admin_1_states_provinces.json",
-          "format": {"type": "topojson", "feature": "ne_10m_admin_1_states_provinces"}
+        /* Join population (ERP 2022) */
+        {
+          "lookup": "properties.name",
+          "from": {
+            "data": {
+              "url": "state_population_2022.csv",
+              "format": {"type": "csv", "parse": {"Population": "number"}}
+            },
+            "key": "State",
+            "fields": ["Population"]
+          }
         },
-        "transform": [
-          {
-            "lookup": "properties.name",
-            "from": {
-              "data": {"url": "mental_health_by_state.csv", "format": {"type": "csv", "parse": {"Value": "number"}}},
-              "key": "State",
-              "fields": ["Value"]
-            }
-          },
-          {
-            "lookup": "properties.name",
-            "from": {
-              "data": {"url": "state_population_2022.csv", "format": {"type": "csv", "parse": {"Population": "number"}}},
-              "key": "State",
-              "fields": ["Population"]
-            }
-          },
-          {"filter": {"field": "properties.name", "oneOf": [
-            "New South Wales", "Victoria", "Queensland", "South Australia",
-            "Western Australia", "Tasmania", "Northern Territory", "Australian Capital Territory"
-          ]}},
-          {"calculate": "toNumber(datum.Value)", "as": "ValueNum"},
-          {"calculate": "toNumber(datum.Population)", "as": "PopNum"},
-          {"calculate": "((datum.ValueNum * 1000) / datum.PopNum) * 1000", "as": "RatePer1000"},
-          {"filter": "isValid(datum.RatePer1000) && datum.RatePer1000 != null"}
-        ],
-        "mark": {"type": "geoshape", "stroke": "#ffffff", "strokeWidth": 1, "cursor": "pointer"},
-        "encoding": {
-          "color": {
-            "field": "RatePer1000", "type": "quantitative",
-            "title": "Persons with Mental & Behavioural Conditions per 1,000 (NHS 2022)",
-            "scale": {"scheme": "blues", "nice": true, "zero": false}
-          },
-          "tooltip": [
-            {"field": "properties.name", "type": "nominal", "title": "State/Territory"},
-            {"field": "ValueNum", "type": "quantitative", "title": "Persons ('000)", "format": ",.1f"},
-            {"field": "RatePer1000", "type": "quantitative", "title": "Per 1,000", "format": ",.2f"}
-          ]
-        }
+
+        {"calculate": "toNumber(datum.Value)", "as": "Persons_000"},
+        {"calculate": "toNumber(datum.Population)", "as": "Pop"},
+        /* Rate per 1,000 residents */
+        {"calculate": "((datum.Persons_000 * 1000) / datum.Pop) * 1000", "as": "Rate_per_1000"},
+        {"filter": "isValid(datum.Rate_per_1000)"}
+      ],
+
+      "mark": {"type": "geoshape", "stroke": "#FFFFFF", "strokeWidth": 1},
+
+      "encoding": {
+        "color": {
+          "field": "Rate_per_1000",
+          "type": "quantitative",
+          "title": "Persons with Mental & Behavioural Conditions per 1,000 (NHS 2022)",
+          "scale": {"scheme": "blues", "nice": true}
+        },
+        "tooltip": [
+          {"field": "properties.name", "type": "nominal", "title": "State / Territory"},
+          {"field": "Persons_000", "type": "quantitative", "title": "Persons ('000)", "format": ",.1f"},
+          {"field": "Pop", "type": "quantitative", "title": "Population (ERP 2022)", "format": ",.0f"},
+          {"field": "Rate_per_1000", "type": "quantitative", "title": "Rate per 1,000", "format": ",.2f"}
+        ]
       }
-    ],
-    "config": {
-      "legend": {"orient": "right", "labelExpr": "format(datum.value, ',.1f')", "titleLimit": 1000, "labelLimit": 1000, "titleFontSize": 12, "titlePadding": 6, "titleLineHeight": 14},
-      "view": {"stroke": null}
     }
-  };
+  ],
 
-  vegaEmbed("#vis", spec, {actions:false, tooltip: true, renderer: "svg"});
+  "config": {
+    "view": {"stroke": null},
+    "legend": {
+      "orient": "none",                  /* detach from layout */
+      "direction": "vertical",
+      "titleFontSize": 11,
+      "titleLimit": 1000,
+      "labelLimit": 1000,
+      "labelExpr": "format(datum.value, ',.0f')"
+    },
+    "axis": {"labelFontSize": 11, "titleFontSize": 12}
+  }
+};
+
+vegaEmbed("#vis", spec, {actions:false, renderer:"svg"}).then(r => {
+  // Move the first legend into our floating container
+  const view = r.view;
+  // Render first to DOM, then relocate legend nodes
+  setTimeout(() => {
+    const root = document.querySelector('#vis');
+    const float = document.querySelector('#legend-float');
+    const legends = root.querySelectorAll('svg g[aria-roledescription="legend"], .mark-legend, .role-legend');
+    if (legends && legends.length && float) {
+      float.innerHTML = '';
+      // Clone the legend node to the floating container
+      float.appendChild(legends[0].cloneNode(true));
+    }
+  }, 0);
+});
 </script>
 </body>
 </html>
