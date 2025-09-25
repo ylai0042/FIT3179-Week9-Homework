@@ -113,28 +113,15 @@ const spec = {
           "lookup": "properties.name",
           "from": {
             "data": {
-              "url": "mental_health_by_state.csv",
-              "format": {"type": "csv", "parse": {"Value": "number"}}
+              "url": "state_health_2022.csv",
+              "format": {"type": "csv", "parse": {"Persons_000": "number", "Population": "number"}}
             },
             "key": "State",
-            "fields": ["Value"]    /* persons in '000 */
+            "fields": ["Persons_000", "Population"]
           }
         },
 
-        /* Join population (ERP 2022) */
-        {
-          "lookup": "properties.name",
-          "from": {
-            "data": {
-              "url": "state_population_2022.csv",
-              "format": {"type": "csv", "parse": {"Population": "number"}}
-            },
-            "key": "State",
-            "fields": ["Population"]
-          }
-        },
-
-        {"calculate": "toNumber(datum.Value)", "as": "Persons_000"},
+        {"calculate": "toNumber(datum.Persons_000)", "as": "Persons_000"},
         {"calculate": "toNumber(datum.Population)", "as": "Pop"},
         /* Rate per 1,000 residents */
         {"calculate": "((datum.Persons_000 * 1000) / datum.Pop) * 1000", "as": "Rate_per_1000"},
